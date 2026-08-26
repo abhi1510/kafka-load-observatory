@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'Kafka Metrics'
+    orgId: 1
+    folder: ''              # Folder name inside Grafana UI
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10    # Auto-reloads changes to JSON files
+    options:
+      path: /var/lib/grafana/dashboards

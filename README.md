@@ -2,7 +2,7 @@
 Load testing Kafka-based applications using k6 and Prometheus/Grafana.
 
 
-The framework exposes a lightweight **Flask Producer API**. K6 generates HTTP traffic against this API, which publishes messages to Kafka. The consumer service processes the messages and exposes metrics that can be visualized in Grafana.
+The framework exposes a lightweight **Flask Event API**. K6 generates HTTP traffic against this API, which publishes messages to Kafka. The consumer service processes the messages and exposes metrics that can be visualized in Grafana.
 
 The primary goal is to answer questions such as:
 
@@ -11,17 +11,6 @@ The primary goal is to answer questions such as:
 * How many events per second are successfully processed?
 * At what load does consumer lag begin to increase?
 * How does processing latency change as load increases?
-
----
-
-## Goals
-
-* Simple setup with minimal dependencies.
-* No custom k6 binaries or Kafka extensions.
-* End-to-end load testing from HTTP request to Kafka consumer.
-* Prometheus-based metrics collection.
-* Grafana dashboards for real-time visualization.
-* Easily extensible for larger-scale performance testing.
 
 ---
 
@@ -37,7 +26,7 @@ The primary goal is to answer questions such as:
                             |
                             v
                 +----------------------+
-                |  Flask Producer API  |
+                |   Flask Event API    |
                 +----------+-----------+
                            |
                     Kafka Produce
@@ -82,9 +71,14 @@ Responsibilities:
 * Support ramp-up/ramp-down scenarios.
 * Collect HTTP latency and success metrics.
 
+```sh
+BASE_URL=http://127.0.0.1:5001 VUS=5 DURATION=1s \
+  k6 run k6/scenarios/constant-load.js
+```
+
 ---
 
-### 2. Flask Producer API
+### 2. Flask API
 
 Acts as the bridge between HTTP and Kafka.
 
@@ -104,14 +98,44 @@ Responsible for durable message storage and distribution.
 Initial configuration:
 
 * Single broker
-* One topic
-* Three partitions
+* 1 topic
+* 4 partitions
 
 The configuration can be expanded later to support larger clusters.
 
+#### Testing Kafka
+
+```sh
+# start a producer
+docker compose exec kafka \
+  /opt/kafka/bin/kafka-console-producer.sh \
+  --bootstrap-server kafka:9092 \
+  --topic events
+
+# start a consumer
+docker compose exec kafka \
+  /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka:9092 \
+  --topic events \
+  --from-beginning
+```
 ---
 
-### 4. Consumer Service
+### 4. App
+
+```sh
+docker compose down -v \
+  && docker rmi klo-app \
+  && docker compose up -d
+```
+
+```sh
+curl -X POST http://127.0.0.1:5001/events \
+     -H "Content-Type: application/json" \
+     -d '{"name": "John Doe", "email": "john@example.com"}'
+```
+
+-----
 
 Consumes messages from Kafka.
 
@@ -204,16 +228,19 @@ These values are intended as starting points and can be adjusted based on system
 ## Repository Structure
 
 ```text
-.
 ├── producer/
 │   ├── app.py
-│   ├── kafka_producer.py
-│   └── metrics.py
+│   ├── producer.py
+│   ├── metrics.py
+│   ├── requirements.txt
+│   └── Dockerfile
 │
 ├── consumer/
 │   ├── consumer.py
 │   ├── processor.py
-│   └── metrics.py
+│   ├── metrics.py
+│   ├── requirements.txt
+│   └── Dockerfile
 │
 ├── k6/
 │   ├── scripts/
@@ -241,3 +268,45 @@ These values are intended as starting points and can be adjusted based on system
 * Distributed load generation
 * CI/CD integration for performance regression testing
 * Automated report generation
+
+
+## Running the app
+
+```shell
+docker compose down -v && docker system prune -f
+docker compose --build --no-cache && docker compose up -d
+```
+
+### Test with single request
+```shell
+curl -X POST http://localhost:5050/publish \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "1",
+    "timestamp": "2026-07-14T17:00:00Z",
+    "payload": {
+      "source": "manual-test",
+      "value": 12345
+    }
+  }'
+```
+
+## Running the benchmark (k6)
+```shell
+# Default: 20 virtual users for 2 minutes
+k6 run k6/scenarios/constant-load.js
+
+# 50 virtual users for 5 minutes:
+k6 run \
+    -e VUS=50 \
+    -e DURATION=5m \
+    k6/scenarios/constant-load.js
+
+# 10 virtual users for 10 seconds:
+k6 run \
+    -e VUS=10 \
+    -e DURATION=10s \
+    k6/scenarios/constant-load.js
+```
+
+# TODO: NEED TO SETUP MONITORING NOW

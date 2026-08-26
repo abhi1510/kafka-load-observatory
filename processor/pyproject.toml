@@ -1,0 +1,13 @@
+[project]
+name = "processor"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "prometheus-client==0.22.1",
+    "kafka-lib"
+]
+
+[tool.uv.sources]
+kafka-lib = {path = "../kafka-lib", editable=true}

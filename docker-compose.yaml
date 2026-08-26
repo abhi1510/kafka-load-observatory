@@ -1,0 +1,94 @@
+services:
+  app:
+    image: klo-app
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: klo-app
+    ports:
+      - "5001:5000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EVENT_TOPIC: events
+    depends_on:
+      - kafka-init
+
+  processor:
+    image: klo-processor
+    build:
+      context: .
+      dockerfile: processor/Dockerfile
+    container_name: klo-processor
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EVENT_TOPIC: events
+      KAFKA_GROUP_ID: klo-processor
+    depends_on:
+      - kafka-init
+
+  kafka:
+    image: apache/kafka
+    container_name: klo-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"  
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+  kafka-init:
+    image: apache/kafka
+    container_name: klo-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - bash
+      - -c
+      - |
+          echo "Creating topics..."
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
+            --topic events --create --partitions 4 --replication-factor 1 \
+            --if-not-exists
+          echo "Topic creation complete."
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: klo-prometheus
+    # depends_on:
+    #   - app
+    #   - consumer
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: klo-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+
