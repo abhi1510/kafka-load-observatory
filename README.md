@@ -49,8 +49,7 @@ Use `docker compose down -v` when you also want to remove Compose-managed volume
 | Service | Host endpoint | Purpose |
 | --- | --- | --- |
 | Flask API | http://localhost:5001 | Event API |
-| Flask metrics | http://localhost:5001/metrics | Producer metrics |
-| Processor metrics | http://localhost:8000/metrics | Consumer metrics |
+| Kafka exporter metrics | http://localhost:9308/metrics | Broker health and Kafka metrics |
 | Prometheus | http://localhost:9090 | Metrics queries and targets |
 | Grafana | http://localhost:3000 | Dashboards |
 
@@ -72,13 +71,6 @@ curl -X POST http://localhost:5001/events \
   -d '{"id":"1","source":"manual-test","value":12345}'
 ```
 
-Inspect metrics:
-
-```sh
-curl http://localhost:5001/metrics
-curl http://localhost:8000/metrics
-```
-
 ## Run k6
 
 The executable scenario is `k6/scenarios/constant-load.js`. It defaults to 20 virtual users for two minutes and sends requests to `http://127.0.0.1:5001`.
@@ -91,8 +83,8 @@ Override the target, virtual users, and duration with environment variables:
 
 ```sh
 BASE_URL=http://127.0.0.1:5001 \
-VUS=50 \
-DURATION=5m \
+VUS=5 \
+DURATION=10s \
 k6 run k6/scenarios/constant-load.js
 ```
 
@@ -112,30 +104,13 @@ docker compose exec kafka \
 
 ## Prometheus metrics
 
-The Flask API exposes:
-
-| Metric | Description |
-| --- | --- |
-| `kafka_messages_published_total` | Successfully published messages |
-| `kafka_publish_failures_total` | Failed publish attempts |
-| `kafka_publish_latency_seconds` | Publish latency histogram |
-
-The processor exposes:
-
-| Metric | Description |
-| --- | --- |
-| `kafka_consumer_messages_received_total` | Records fetched from Kafka |
-| `kafka_consumer_messages_processed_total` | Messages successfully processed |
-| `kafka_consumer_messages_failed_total` | Failed deserialization or handling |
-| `kafka_consumer_batch_size_records` | Records per poll batch |
-| `kafka_consumer_processing_duration_seconds` | Handler processing duration |
+The stack is intentionally focused on the Kafka exporter for broker and topic observability. Prometheus scrapes the exporter at `kafka-exporter:9308` via the configured job in `monitoring/prometheus/prometheus.yml`.
 
 Example PromQL queries:
 
 ```promql
-rate(kafka_messages_published_total[1m])
-rate(kafka_consumer_messages_processed_total[1m])
-rate(kafka_consumer_messages_failed_total[1m])
+kafka_broker_info
+kafka_topic_partition_current_offset
 ```
 
 ## Repository layout

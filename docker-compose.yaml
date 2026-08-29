@@ -66,12 +66,21 @@ services:
             --if-not-exists
           echo "Topic creation complete."
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    container_name: klo-kafka-exporter
+    command:
+      - "--kafka.server=kafka:9092"  
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: on-failure
+
   prometheus:
     image: prom/prometheus:latest
     container_name: klo-prometheus
-    # depends_on:
-    #   - app
-    #   - consumer
     ports:
       - "9090:9090"
     volumes:

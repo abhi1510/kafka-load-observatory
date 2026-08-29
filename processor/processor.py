@@ -6,7 +6,6 @@ import threading
 import time
 
 from kafka_lib.kafka_consumer import KafkaConsumerClient
-from prometheus_client import start_http_server
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,8 +35,6 @@ def handler(payloads: dict, _):
 
 
 def main():
-    start_http_server(8000, addr="0.0.0.0")
-
     consumer = KafkaConsumerClient(
         topic=os.getenv("EVENT_TOPIC"),
         bootstrap_servers=[os.getenv("KAFKA_BOOTSTRAP_SERVERS")],

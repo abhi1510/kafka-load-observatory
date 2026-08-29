@@ -1,9 +1,0 @@
-pyproject.toml
-kafka_lib/kafka_consumer.py
-kafka_lib/kafka_producer.py
-kafka_lib/metrics.py
-kafka_lib.egg-info/PKG-INFO
-kafka_lib.egg-info/SOURCES.txt
-kafka_lib.egg-info/dependency_links.txt
-kafka_lib.egg-info/requires.txt
-kafka_lib.egg-info/top_level.txt

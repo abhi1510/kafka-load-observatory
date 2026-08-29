@@ -8,13 +8,6 @@ from threading import Event, Thread
 from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 from kafka.errors import KafkaError, NoBrokersAvailable
-from kafka_lib.metrics import (
-    BATCH_SIZE,
-    MESSAGES_FAILED,
-    MESSAGES_PROCESSED,
-    MESSAGES_RECEIVED,
-    PROCESSING_LATENCY,
-)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -134,59 +127,28 @@ class KafkaConsumerClient:
                 if not batch:
                     continue
 
+                payloads: list[t.Any] = []
                 records: list[ConsumerRecord] = [
                     record
                     for partition_records in batch.values()
                     for record in partition_records
                 ]
-                batch_len = len(records)
-                MESSAGES_RECEIVED.labels(topic=self.topic, group_id=self.group_id).inc(
-                    batch_len
-                )
-                BATCH_SIZE.labels(topic=self.topic, group_id=self.group_id).observe(
-                    batch_len
-                )
-
-                payloads: list[t.Any] = []
 
                 for record in records:
                     try:
                         payloads.append(self.value_deserializer(record.value))
                     except Exception:
-                        MESSAGES_FAILED.labels(
-                            topic=self.topic,
-                            group_id=self.group_id,
-                            reason="deserialization",
-                        ).inc()
                         self.logger.exception(
                             "Deserialisation failed - skipping message"
                         )
 
-                # Handler execution phase
-                start_time = time.perf_counter()
                 try:
                     self.handler(payloads, records)
                     consumer.commit()
-
-                    # Record successful process counts
-                    MESSAGES_PROCESSED.labels(
-                        topic=self.topic, group_id=self.group_id
-                    ).inc(len(payloads))
                 except Exception:
-                    MESSAGES_FAILED.labels(
-                        topic=self.topic,
-                        group_id=self.group_id,
-                        reason="handler",
-                    ).inc(len(payloads))
                     self.logger.exception(
                         "Batch processing failed and offset not committed"
                     )
-                finally:
-                    duration = time.perf_counter() - start_time
-                    PROCESSING_LATENCY.labels(
-                        topic=self.topic, group_id=self.group_id
-                    ).observe(duration)
-
         finally:
             consumer.close()
 

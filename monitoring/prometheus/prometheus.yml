@@ -14,3 +14,9 @@ scrape_configs:
       - targets:
           - processor:8000
     metrics_path: /metrics
+
+  - job_name: kafka-exporter
+    static_configs:
+      - targets:
+          - kafka-exporter:9308
+    metrics_path: /metrics
